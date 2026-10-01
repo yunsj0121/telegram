@@ -1,0 +1,11 @@
+services:
+  relay:
+    build: .
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - relay-data:/data
+
+volumes:
+  relay-data:
+
