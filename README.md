@@ -74,6 +74,8 @@ supabase/migrations/20261001121500_telegram_relay_state.sql
 | `SUPABASE_URL` | Supabase Project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role 키 |
 
+같은 화면의 `Variables` 탭에서 `RELAY_ENABLED`를 만들고 값으로 `true`를 등록합니다. 이 변수가 없으면 예약 작업은 안전하게 건너뛰므로 설정을 마치기 전 실패 로그가 쌓이지 않습니다.
+
 첫 실행은 `Actions → Telegram relay → Run workflow`에서 수동으로 실행합니다. 첫 실행은 현재 최신 게시물 번호만 기준점으로 저장하며 과거 게시물을 복사하지 않습니다. 그다음 원본 채널에 테스트 게시물을 올리고 다시 실행해 복사 여부를 확인합니다.
 
 ## 4. cron-job.org를 5분 간격으로 연결
