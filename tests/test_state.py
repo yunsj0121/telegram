@@ -23,9 +23,22 @@ class RelayStateTests(unittest.TestCase):
 
             state.save_many([MessageMapping(10, 999, 77)])
             self.assertEqual(state.get_target_id(10), 110)
+
+            self.assertIsNone(state.get_cursor())
+            state.set_cursor(11)
+            self.assertEqual(state.get_cursor(), 11)
+            state.set_cursor(12)
+            self.assertEqual(state.get_cursor(), 12)
+
+            recent = state.list_recent(1)
+            self.assertEqual(recent[0].source_message_id, 11)
+            state.mark_edit_synced(11, "2026-10-01T12:00:00+00:00")
+            self.assertEqual(
+                state.list_recent(1)[0].source_edit_date,
+                "2026-10-01T12:00:00+00:00",
+            )
             state.close()
 
 
 if __name__ == "__main__":
     unittest.main()
-

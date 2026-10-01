@@ -34,6 +34,12 @@ class Settings:
     source_channel: int | str
     target_channel: int | str
     state_db_path: Path
+    state_backend: str
+    run_mode: str
+    supabase_url: str | None
+    supabase_service_role_key: str | None
+    edit_lookback: int
+    poll_settle_seconds: int
     log_level: str
     silent: bool
 
@@ -52,6 +58,40 @@ class Settings:
             raise ValueError("API_ID must be an integer") from exc
 
         state_path = Path(values.get("STATE_DB_PATH", "./data/relay.sqlite3")).expanduser()
+        state_backend = values.get("STATE_BACKEND", "sqlite").strip().lower()
+        if state_backend not in {"sqlite", "supabase"}:
+            raise ValueError("STATE_BACKEND must be either sqlite or supabase")
+
+        run_mode = values.get("RUN_MODE", "continuous").strip().lower()
+        if run_mode not in {"continuous", "poll"}:
+            raise ValueError("RUN_MODE must be either continuous or poll")
+
+        supabase_url = values.get("SUPABASE_URL", "").strip() or None
+        supabase_service_role_key = (
+            values.get("SUPABASE_SERVICE_ROLE_KEY", "").strip() or None
+        )
+        if state_backend == "supabase" and not (
+            supabase_url and supabase_service_role_key
+        ):
+            raise ValueError(
+                "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required "
+                "when STATE_BACKEND=supabase"
+            )
+
+        try:
+            edit_lookback = int(values.get("EDIT_LOOKBACK", "100"))
+        except ValueError as exc:
+            raise ValueError("EDIT_LOOKBACK must be an integer") from exc
+        if edit_lookback < 0:
+            raise ValueError("EDIT_LOOKBACK must be zero or greater")
+
+        try:
+            poll_settle_seconds = int(values.get("POLL_SETTLE_SECONDS", "30"))
+        except ValueError as exc:
+            raise ValueError("POLL_SETTLE_SECONDS must be an integer") from exc
+        if poll_settle_seconds < 0:
+            raise ValueError("POLL_SETTLE_SECONDS must be zero or greater")
+
         return cls(
             api_id=api_id,
             api_hash=values["API_HASH"].strip(),
@@ -59,7 +99,12 @@ class Settings:
             source_channel=parse_chat_ref(values["SOURCE_CHANNEL"]),
             target_channel=parse_chat_ref(values["TARGET_CHANNEL"]),
             state_db_path=state_path,
+            state_backend=state_backend,
+            run_mode=run_mode,
+            supabase_url=supabase_url,
+            supabase_service_role_key=supabase_service_role_key,
+            edit_lookback=edit_lookback,
+            poll_settle_seconds=poll_settle_seconds,
             log_level=values.get("LOG_LEVEL", "INFO").strip().upper(),
             silent=parse_bool(values.get("SILENT", "false")),
         )
-

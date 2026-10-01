@@ -1,0 +1,45 @@
+name: Telegram relay
+
+on:
+  # cron-job.org calls workflow_dispatch every five minutes. This hourly schedule
+  # is only a fallback if the external scheduler is temporarily unavailable.
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-relay
+  cancel-in-progress: false
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      API_ID: ${{ secrets.TELEGRAM_API_ID }}
+      API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+      TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SOURCE_CHANNEL: "@aetherjapanresearch"
+      TARGET_CHANNEL: "@noche_economic"
+      RUN_MODE: poll
+      STATE_BACKEND: supabase
+      EDIT_LOOKBACK: "100"
+      POLL_SETTLE_SECONDS: "30"
+      LOG_LEVEL: INFO
+      SILENT: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Relay new posts
+        run: PYTHONPATH=src python -m noche_relay
