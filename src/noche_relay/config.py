@@ -37,7 +37,7 @@ class Settings:
     state_backend: str
     run_mode: str
     supabase_url: str | None
-    supabase_service_role_key: str | None
+    supabase_secret_key: str | None
     edit_lookback: int
     poll_settle_seconds: int
     log_level: str
@@ -67,14 +67,16 @@ class Settings:
             raise ValueError("RUN_MODE must be either continuous or poll")
 
         supabase_url = values.get("SUPABASE_URL", "").strip() or None
-        supabase_service_role_key = (
-            values.get("SUPABASE_SERVICE_ROLE_KEY", "").strip() or None
+        # Prefer Supabase's current sb_secret_ keys. Keep the legacy
+        # service_role environment variable as a migration fallback.
+        supabase_secret_key = (
+            values.get("SUPABASE_SECRET_KEY", "").strip()
+            or values.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+            or None
         )
-        if state_backend == "supabase" and not (
-            supabase_url and supabase_service_role_key
-        ):
+        if state_backend == "supabase" and not (supabase_url and supabase_secret_key):
             raise ValueError(
-                "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required "
+                "SUPABASE_URL and SUPABASE_SECRET_KEY are required "
                 "when STATE_BACKEND=supabase"
             )
 
@@ -102,7 +104,7 @@ class Settings:
             state_backend=state_backend,
             run_mode=run_mode,
             supabase_url=supabase_url,
-            supabase_service_role_key=supabase_service_role_key,
+            supabase_secret_key=supabase_secret_key,
             edit_lookback=edit_lookback,
             poll_settle_seconds=poll_settle_seconds,
             log_level=values.get("LOG_LEVEL", "INFO").strip().upper(),

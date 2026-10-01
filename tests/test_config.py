@@ -51,6 +51,37 @@ class ConfigTests(unittest.TestCase):
                 }
             )
 
+    def test_supabase_secret_key_is_preferred(self):
+        settings = Settings.from_env(
+            {
+                "API_ID": "123",
+                "API_HASH": "hash",
+                "TELEGRAM_SESSION": "session",
+                "SOURCE_CHANNEL": "@source",
+                "TARGET_CHANNEL": "@target",
+                "STATE_BACKEND": "supabase",
+                "SUPABASE_URL": "https://example.supabase.co",
+                "SUPABASE_SECRET_KEY": "sb_secret_current",
+                "SUPABASE_SERVICE_ROLE_KEY": "legacy-key",
+            }
+        )
+        self.assertEqual(settings.supabase_secret_key, "sb_secret_current")
+
+    def test_legacy_service_role_key_is_supported(self):
+        settings = Settings.from_env(
+            {
+                "API_ID": "123",
+                "API_HASH": "hash",
+                "TELEGRAM_SESSION": "session",
+                "SOURCE_CHANNEL": "@source",
+                "TARGET_CHANNEL": "@target",
+                "STATE_BACKEND": "supabase",
+                "SUPABASE_URL": "https://example.supabase.co",
+                "SUPABASE_SERVICE_ROLE_KEY": "legacy-key",
+            }
+        )
+        self.assertEqual(settings.supabase_secret_key, "legacy-key")
+
 
 if __name__ == "__main__":
     unittest.main()

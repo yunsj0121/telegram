@@ -59,10 +59,10 @@ async def _with_flood_wait(operation):
 def _build_state(settings: Settings) -> StateStore:
     if settings.state_backend == "supabase":
         assert settings.supabase_url is not None
-        assert settings.supabase_service_role_key is not None
+        assert settings.supabase_secret_key is not None
         return SupabaseRelayState(
             settings.supabase_url,
-            settings.supabase_service_role_key,
+            settings.supabase_secret_key,
             settings.source_channel,
             settings.target_channel,
         )

@@ -30,7 +30,7 @@ Docker 또는 VM에서 프로세스를 계속 실행하면 새 게시물을 거�
 
 ## 보안 주의사항
 
-`API_HASH`, `TELEGRAM_SESSION`, `SUPABASE_SERVICE_ROLE_KEY`, GitHub 토큰은 비밀번호와 같습니다. 채팅, 코드, README, 이슈 또는 공개 로그에 입력하지 마세요. 모든 실제 값은 GitHub Actions Secrets 또는 서버의 비밀 환경변수로만 저장합니다.
+`API_HASH`, `TELEGRAM_SESSION`, `SUPABASE_SECRET_KEY`, GitHub 토큰은 비밀번호와 같습니다. 채팅, 코드, README, 이슈 또는 공개 로그에 입력하지 마세요. 모든 실제 값은 GitHub Actions Secrets 또는 서버의 비밀 환경변수로만 저장합니다.
 
 ## 1. 텔레그램 준비
 
@@ -60,7 +60,7 @@ supabase/migrations/20261001121500_telegram_relay_state.sql
 - `telegram_relay_cursors`: 마지막으로 처리한 원본 메시지 번호
 - `telegram_relay_message_map`: 원본과 대상 메시지 대응표 및 수정 시각
 
-두 테이블은 RLS가 활성화되고 `anon`, `authenticated` 역할의 접근 권한이 제거됩니다. 서버용 `service_role`만 접근합니다.
+두 테이블은 RLS가 활성화되고 `anon`, `authenticated` 역할의 접근 권한이 제거됩니다. 서버용 Secret key만 접근합니다.
 
 ## 3. GitHub Actions Secrets 등록
 
@@ -72,7 +72,7 @@ supabase/migrations/20261001121500_telegram_relay_state.sql
 | `TELEGRAM_API_HASH` | my.telegram.org에서 발급한 해시 |
 | `TELEGRAM_SESSION` | StringSession 생성 결과 |
 | `SUPABASE_URL` | Supabase Project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role 키 |
+| `SUPABASE_SECRET_KEY` | Supabase `sb_secret_...` Secret key |
 
 같은 화면의 `Variables` 탭에서 `RELAY_ENABLED`를 만들고 값으로 `true`를 등록합니다. 이 변수가 없으면 예약 작업은 안전하게 건너뛰므로 설정을 마치기 전 실패 로그가 쌓이지 않습니다.
 

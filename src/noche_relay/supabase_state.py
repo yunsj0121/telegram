@@ -16,13 +16,13 @@ class SupabaseRelayState:
     def __init__(
         self,
         url: str,
-        service_role_key: str,
+        secret_key: str,
         source_channel: int | str,
         target_channel: int | str,
         opener: Callable = urlopen,
     ):
         self._base_url = f"{url.rstrip('/')}/rest/v1"
-        self._key = service_role_key
+        self._key = secret_key
         self._source_channel = str(source_channel)
         self._target_channel = str(target_channel)
         self._opener = opener
@@ -43,7 +43,6 @@ class SupabaseRelayState:
         data = None if payload is None else json.dumps(payload).encode("utf-8")
         headers = {
             "apikey": self._key,
-            "Authorization": f"Bearer {self._key}",
             "Accept": "application/json",
         }
         if data is not None:

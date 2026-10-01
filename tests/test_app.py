@@ -79,7 +79,7 @@ class PollRunTests(unittest.IsolatedAsyncioTestCase):
             state_backend="sqlite",
             run_mode="poll",
             supabase_url=None,
-            supabase_service_role_key=None,
+            supabase_secret_key=None,
             edit_lookback=0,
             poll_settle_seconds=0,
             log_level="INFO",

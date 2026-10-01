@@ -47,6 +47,8 @@ class SupabaseRelayStateTests(unittest.TestCase):
         cursor_request = opener.requests[1][0]
         self.assertEqual(cursor_request.method, "POST")
         self.assertIn("telegram_relay_cursors", cursor_request.full_url)
+        self.assertEqual(cursor_request.headers["Apikey"], "service-key")
+        self.assertNotIn("Authorization", cursor_request.headers)
         self.assertEqual(json.loads(cursor_request.data)["last_source_message_id"], 43)
 
         mapping_request = opener.requests[2][0]
