@@ -20,7 +20,12 @@ create table if not exists public.telegram_relay_message_map (
 alter table public.telegram_relay_cursors enable row level security;
 alter table public.telegram_relay_message_map enable row level security;
 
-revoke all on table public.telegram_relay_cursors from anon, authenticated;
-revoke all on table public.telegram_relay_message_map from anon, authenticated;
-grant all on table public.telegram_relay_cursors to service_role;
-grant all on table public.telegram_relay_message_map to service_role;
+revoke all on table public.telegram_relay_cursors
+    from public, anon, authenticated, service_role;
+revoke all on table public.telegram_relay_message_map
+    from public, anon, authenticated, service_role;
+
+grant select, insert, update, delete
+    on table public.telegram_relay_cursors to service_role;
+grant select, insert, update, delete
+    on table public.telegram_relay_message_map to service_role;
