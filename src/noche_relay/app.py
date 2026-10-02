@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
+import hashlib
 import logging
+from pathlib import Path
 from typing import Iterable, Sequence
 
 from telethon import TelegramClient, events
@@ -56,17 +58,27 @@ async def _with_flood_wait(operation):
             await asyncio.sleep(exc.seconds + 1)
 
 
-def _build_state(settings: Settings) -> StateStore:
+def _state_path_for_source(settings: Settings, source_channel: int | str) -> Path:
+    """Keep legacy SQLite paths for one source and isolate multi-source state."""
+    if len(settings.source_channels) == 1:
+        return settings.state_db_path
+    digest = hashlib.sha256(str(source_channel).encode("utf-8")).hexdigest()[:12]
+    return settings.state_db_path.with_name(
+        f"{settings.state_db_path.stem}-{digest}{settings.state_db_path.suffix}"
+    )
+
+
+def _build_state(settings: Settings, source_channel: int | str) -> StateStore:
     if settings.state_backend == "supabase":
         assert settings.supabase_url is not None
         assert settings.supabase_secret_key is not None
         return SupabaseRelayState(
             settings.supabase_url,
             settings.supabase_secret_key,
-            settings.source_channel,
+            source_channel,
             settings.target_channel,
         )
-    return RelayState(settings.state_db_path)
+    return RelayState(_state_path_for_source(settings, source_channel))
 
 
 async def _relay_messages(
@@ -249,6 +261,26 @@ async def _run_continuous(
 ) -> None:
     relay_lock = asyncio.Lock()
 
+    await _register_continuous_handlers(
+        client,
+        source,
+        target,
+        state,
+        settings,
+        relay_lock,
+    )
+    await client.run_until_disconnected()
+
+
+async def _register_continuous_handlers(
+    client: TelegramClient,
+    source,
+    target,
+    state: StateStore,
+    settings: Settings,
+    relay_lock: asyncio.Lock,
+) -> None:
+
     async def relay(messages: Iterable[Message]) -> None:
         async with relay_lock:
             await _relay_messages(
@@ -303,17 +335,14 @@ async def _run_continuous(
         except Exception:
             LOGGER.exception("Could not sync edit for source message %s", event.message.id)
 
-    await client.run_until_disconnected()
-
-
 async def run(settings: Settings) -> None:
     logging.basicConfig(
         level=getattr(logging, settings.log_level, logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    state = _build_state(settings)
     client = TelegramClient(StringSession(settings.session), settings.api_id, settings.api_hash)
+    states: list[StateStore] = []
 
     try:
         await client.connect()
@@ -322,24 +351,43 @@ async def run(settings: Settings) -> None:
                 "TELEGRAM_SESSION is not authorized; generate a new string session"
             )
 
-        source = await client.get_entity(settings.source_channel)
         target = await client.get_entity(settings.target_channel)
+        sources = [
+            await client.get_entity(source_channel)
+            for source_channel in settings.source_channels
+        ]
         account = await client.get_me()
 
         LOGGER.info(
-            "Relay ready: mode=%s account=%s source=%s target=%s",
+            "Relay ready: mode=%s account=%s sources=%s target=%s",
             settings.run_mode,
             getattr(account, "username", None) or account.id,
-            getattr(source, "username", None) or source.id,
+            [getattr(source, "username", None) or source.id for source in sources],
             getattr(target, "username", None) or target.id,
         )
 
         if settings.run_mode == "poll":
-            await _run_poll(client, source, target, state, settings)
+            for source_ref, source in zip(settings.source_channels, sources, strict=True):
+                state = _build_state(settings, source_ref)
+                states.append(state)
+                await _run_poll(client, source, target, state, settings)
         else:
-            await _run_continuous(client, source, target, state, settings)
+            relay_lock = asyncio.Lock()
+            for source_ref, source in zip(settings.source_channels, sources, strict=True):
+                state = _build_state(settings, source_ref)
+                states.append(state)
+                await _register_continuous_handlers(
+                    client,
+                    source,
+                    target,
+                    state,
+                    settings,
+                    relay_lock,
+                )
+            await client.run_until_disconnected()
     finally:
-        state.close()
+        for state in states:
+            state.close()
         await client.disconnect()
 
 

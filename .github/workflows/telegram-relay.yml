@@ -25,7 +25,8 @@ jobs:
       TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-      SOURCE_CHANNEL: "@aetherjapanresearch"
+      # Add more source channels separated by commas; the target stays fixed.
+      SOURCE_CHANNELS: "@aetherjapanresearch"
       TARGET_CHANNEL: "@noche_economic"
       RUN_MODE: poll
       STATE_BACKEND: supabase

@@ -1,12 +1,20 @@
 import unittest
 
-from noche_relay.config import Settings, parse_bool, parse_chat_ref
+from noche_relay.config import Settings, parse_bool, parse_chat_ref, parse_chat_refs
 
 
 class ConfigTests(unittest.TestCase):
     def test_parse_chat_ref(self):
         self.assertEqual(parse_chat_ref(" @aetherjapanresearch "), "@aetherjapanresearch")
         self.assertEqual(parse_chat_ref("-100123456789"), -100123456789)
+
+    def test_parse_chat_refs(self):
+        self.assertEqual(
+            parse_chat_refs(" @first, -100123456789, @third "),
+            ("@first", -100123456789, "@third"),
+        )
+        with self.assertRaises(ValueError):
+            parse_chat_refs(" , ")
 
     def test_parse_bool(self):
         self.assertTrue(parse_bool("YES"))
@@ -20,7 +28,7 @@ class ConfigTests(unittest.TestCase):
                 "API_ID": "123",
                 "API_HASH": "hash",
                 "TELEGRAM_SESSION": "session",
-                "SOURCE_CHANNEL": "@source",
+                "SOURCE_CHANNELS": "@source,@second_source",
                 "TARGET_CHANNEL": "@target",
                 "STATE_DB_PATH": "./state.sqlite3",
                 "RUN_MODE": "poll",
@@ -28,7 +36,7 @@ class ConfigTests(unittest.TestCase):
             }
         )
         self.assertEqual(settings.api_id, 123)
-        self.assertEqual(settings.source_channel, "@source")
+        self.assertEqual(settings.source_channels, ("@source", "@second_source"))
         self.assertEqual(settings.run_mode, "poll")
         self.assertEqual(settings.state_backend, "sqlite")
         self.assertEqual(settings.poll_settle_seconds, 30)
@@ -81,6 +89,18 @@ class ConfigTests(unittest.TestCase):
             }
         )
         self.assertEqual(settings.supabase_secret_key, "legacy-key")
+
+    def test_legacy_source_channel_name_is_supported(self):
+        settings = Settings.from_env(
+            {
+                "API_ID": "123",
+                "API_HASH": "hash",
+                "TELEGRAM_SESSION": "session",
+                "SOURCE_CHANNEL": "@legacy",
+                "TARGET_CHANNEL": "@target",
+            }
+        )
+        self.assertEqual(settings.source_channels, ("@legacy",))
 
 
 if __name__ == "__main__":

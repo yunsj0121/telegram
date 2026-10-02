@@ -17,6 +17,14 @@ def parse_chat_ref(value: str) -> int | str:
         return cleaned
 
 
+def parse_chat_refs(value: str) -> tuple[int | str, ...]:
+    """Parse a comma-separated list of Telegram channel references."""
+    refs = tuple(parse_chat_ref(item) for item in value.split(",") if item.strip())
+    if not refs:
+        raise ValueError("at least one source channel reference is required")
+    return refs
+
+
 def parse_bool(value: str) -> bool:
     normalized = value.strip().lower()
     if normalized in {"1", "true", "yes", "on"}:
@@ -31,7 +39,7 @@ class Settings:
     api_id: int
     api_hash: str
     session: str
-    source_channel: int | str
+    source_channels: tuple[int | str, ...]
     target_channel: int | str
     state_db_path: Path
     state_backend: str
@@ -47,8 +55,13 @@ class Settings:
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
         values = os.environ if env is None else env
 
-        required = ("API_ID", "API_HASH", "TELEGRAM_SESSION", "SOURCE_CHANNEL", "TARGET_CHANNEL")
+        required = ("API_ID", "API_HASH", "TELEGRAM_SESSION", "TARGET_CHANNEL")
         missing = [key for key in required if not values.get(key, "").strip()]
+        source_value = values.get("SOURCE_CHANNELS", "").strip() or values.get(
+            "SOURCE_CHANNEL", ""
+        ).strip()
+        if not source_value:
+            missing.append("SOURCE_CHANNELS")
         if missing:
             raise ValueError(f"missing required environment variables: {', '.join(missing)}")
 
@@ -98,7 +111,7 @@ class Settings:
             api_id=api_id,
             api_hash=values["API_HASH"].strip(),
             session=values["TELEGRAM_SESSION"].strip(),
-            source_channel=parse_chat_ref(values["SOURCE_CHANNEL"]),
+            source_channels=parse_chat_refs(source_value),
             target_channel=parse_chat_ref(values["TARGET_CHANNEL"]),
             state_db_path=state_path,
             state_backend=state_backend,

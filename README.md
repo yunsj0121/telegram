@@ -1,6 +1,6 @@
 # Noche Telegram Relay
 
-`@aetherjapanresearch`의 새 게시물을 `@noche_economic` 방송 채널로 자동 복사하는 사용자 계정 기반 릴레이입니다.
+하나 이상의 원본 채널의 새 게시물을 `@noche_economic` 방송 채널로 자동 복사하는 사용자 계정 기반 릴레이입니다.
 
 원본 채널에는 봇을 추가할 필요가 없습니다. 사용자 계정이 원본 채널에 가입해 게시물을 읽고, 원본 작성자 표시를 제거한 복사본을 대상 채널에 게시합니다.
 
@@ -34,7 +34,7 @@ Docker 또는 VM에서 프로세스를 계속 실행하면 새 게시물을 거�
 
 ## 1. 텔레그램 준비
 
-1. 자동화에 사용할 계정으로 `@aetherjapanresearch`에 가입합니다.
+1. 자동화에 사용할 계정으로 복사할 모든 원본 채널에 가입합니다.
 2. 같은 계정이 `@noche_economic` 채널에 게시할 수 있어야 합니다.
 3. [my.telegram.org](https://my.telegram.org)의 `API development tools`에서 `API_ID`와 `API_HASH`를 발급합니다.
 4. 아래 도구로 사용자 계정의 StringSession을 한 번 생성합니다.
@@ -46,6 +46,9 @@ PYTHONPATH=src python -m noche_relay.session_tool
 ```
 
 출력된 `TELEGRAM_SESSION`은 외부에 공개하지 않습니다.
+
+여러 원본 채널을 사용할 때는 GitHub Actions workflow의 `SOURCE_CHANNELS` 값을 쉼표로 구분합니다.
+예: `@aetherjapanresearch,@another_source`. 대상 채널은 계속 `TARGET_CHANNEL` 하나로 유지됩니다.
 
 ## 2. Supabase 테이블 만들기
 

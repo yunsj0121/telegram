@@ -73,7 +73,7 @@ class PollRunTests(unittest.IsolatedAsyncioTestCase):
             api_id=1,
             api_hash="hash",
             session="session",
-            source_channel="@source",
+            source_channels=("@source",),
             target_channel="@target",
             state_db_path=Path("state.sqlite3"),
             state_backend="sqlite",
