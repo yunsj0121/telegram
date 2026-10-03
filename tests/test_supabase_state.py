@@ -112,3 +112,20 @@ class SupabaseRelayStateTests(unittest.TestCase):
 
         self.assertEqual(delays, [])
         self.assertEqual(len(opener.requests), 1)
+
+    def test_sends_legacy_service_role_jwt_as_bearer_token(self):
+        opener = FakeOpener(b"[]")
+        legacy_jwt = "eyJheader.eyJpayload.signature"
+        state = SupabaseRelayState(
+            "https://project.supabase.co",
+            legacy_jwt,
+            "@source",
+            "@target",
+            opener=opener,
+        )
+
+        self.assertIsNone(state.get_cursor())
+
+        request = opener.requests[0][0]
+        self.assertEqual(request.headers["Apikey"], legacy_jwt)
+        self.assertEqual(request.headers["Authorization"], f"Bearer {legacy_jwt}")

@@ -52,6 +52,11 @@ class SupabaseRelayState:
             "apikey": self._key,
             "Accept": "application/json",
         }
+        # Modern sb_secret_ keys must be sent only as apikey. Legacy
+        # service_role keys are JWTs and can be forwarded explicitly to
+        # PostgREST, avoiding the gateway's transient JWT minting path.
+        if self._key.startswith("eyJ") and self._key.count(".") == 2:
+            headers["Authorization"] = f"Bearer {self._key}"
         if data is not None:
             headers["Content-Type"] = "application/json"
         if prefer:
