@@ -1,5 +1,7 @@
 import json
 import unittest
+from io import BytesIO
+from urllib.error import HTTPError
 
 from noche_relay.state import MessageMapping
 from noche_relay.supabase_state import SupabaseRelayState
@@ -26,7 +28,20 @@ class FakeOpener:
 
     def __call__(self, request, timeout):
         self.requests.append((request, timeout))
-        return FakeResponse(self.payloads.pop(0))
+        result = self.payloads.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return FakeResponse(result)
+
+
+def http_error(code, payload):
+    return HTTPError(
+        "https://project.supabase.co/rest/v1/telegram_relay_cursors",
+        code,
+        "request failed",
+        {},
+        BytesIO(json.dumps(payload).encode("utf-8")),
+    )
 
 
 class SupabaseRelayStateTests(unittest.TestCase):
@@ -55,3 +70,45 @@ class SupabaseRelayStateTests(unittest.TestCase):
         self.assertEqual(mapping_request.method, "POST")
         self.assertIn("telegram_relay_message_map", mapping_request.full_url)
         self.assertEqual(json.loads(mapping_request.data)[0]["source_message_id"], 43)
+
+    def test_retries_transient_clock_skew_error(self):
+        opener = FakeOpener(
+            http_error(
+                401,
+                {"code": "PGRST303", "message": "JWT issued at future"},
+            ),
+            b"[]",
+        )
+        delays = []
+        state = SupabaseRelayState(
+            "https://project.supabase.co",
+            "service-key",
+            "@source",
+            "@target",
+            opener=opener,
+            sleeper=delays.append,
+        )
+
+        self.assertIsNone(state.get_cursor())
+        self.assertEqual(delays, [2.0])
+        self.assertEqual(len(opener.requests), 2)
+
+    def test_does_not_retry_other_unauthorized_errors(self):
+        opener = FakeOpener(
+            http_error(401, {"code": "PGRST301", "message": "Invalid JWT"})
+        )
+        delays = []
+        state = SupabaseRelayState(
+            "https://project.supabase.co",
+            "service-key",
+            "@source",
+            "@target",
+            opener=opener,
+            sleeper=delays.append,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "Invalid JWT"):
+            state.get_cursor()
+
+        self.assertEqual(delays, [])
+        self.assertEqual(len(opener.requests), 1)

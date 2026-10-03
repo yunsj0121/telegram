@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import logging
+import time
 from typing import Callable, Iterable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from .state import MessageMapping
+
+LOGGER = logging.getLogger(__name__)
+_CLOCK_SKEW_RETRY_DELAYS = (2.0, 4.0)
 
 
 class SupabaseRelayState:
@@ -20,12 +25,14 @@ class SupabaseRelayState:
         source_channel: int | str,
         target_channel: int | str,
         opener: Callable = urlopen,
+        sleeper: Callable[[float], None] = time.sleep,
     ):
         self._base_url = f"{url.rstrip('/')}/rest/v1"
         self._key = secret_key
         self._source_channel = str(source_channel)
         self._target_channel = str(target_channel)
         self._opener = opener
+        self._sleeper = sleeper
 
     def close(self) -> None:
         return None
@@ -49,22 +56,44 @@ class SupabaseRelayState:
             headers["Content-Type"] = "application/json"
         if prefer:
             headers["Prefer"] = prefer
-        request = Request(
-            f"{self._base_url}/{table}{query}",
-            data=data,
-            headers=headers,
-            method=method,
-        )
-        try:
-            with self._opener(request, timeout=20) as response:
-                body = response.read()
-        except HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(
-                f"Supabase request failed ({exc.code}): {detail}"
-            ) from exc
-        except URLError as exc:
-            raise RuntimeError(f"Supabase request failed: {exc.reason}") from exc
+        for attempt in range(len(_CLOCK_SKEW_RETRY_DELAYS) + 1):
+            request = Request(
+                f"{self._base_url}/{table}{query}",
+                data=data,
+                headers=headers,
+                method=method,
+            )
+            try:
+                with self._opener(request, timeout=20) as response:
+                    body = response.read()
+                break
+            except HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                is_clock_skew_error = False
+                if exc.code == 401:
+                    try:
+                        error = json.loads(detail)
+                        is_clock_skew_error = (
+                            error.get("code") == "PGRST303"
+                            and error.get("message") == "JWT issued at future"
+                        )
+                    except (json.JSONDecodeError, AttributeError):
+                        pass
+
+                if is_clock_skew_error and attempt < len(_CLOCK_SKEW_RETRY_DELAYS):
+                    delay = _CLOCK_SKEW_RETRY_DELAYS[attempt]
+                    LOGGER.warning(
+                        "Supabase clock-skew response; retrying in %.0f seconds",
+                        delay,
+                    )
+                    self._sleeper(delay)
+                    continue
+
+                raise RuntimeError(
+                    f"Supabase request failed ({exc.code}): {detail}"
+                ) from exc
+            except URLError as exc:
+                raise RuntimeError(f"Supabase request failed: {exc.reason}") from exc
         return None if not body else json.loads(body.decode("utf-8"))
 
     def _scope(self) -> dict[str, str]:
