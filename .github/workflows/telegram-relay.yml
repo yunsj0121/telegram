@@ -1,10 +1,10 @@
 name: Telegram relay
 
 on:
-  # cron-job.org calls workflow_dispatch every five minutes. This hourly schedule
-  # is only a fallback if the external scheduler is temporarily unavailable.
+  # Run automatically every five minutes. workflow_dispatch keeps the manual
+  # Run workflow button available for testing and recovery.
   schedule:
-    - cron: "17 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
