@@ -1,9 +1,20 @@
+import asyncio
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest.mock import AsyncMock, Mock
 
-from noche_relay.app import _run_poll, group_messages
+from telethon.errors import MessageNotModifiedError
+
+from noche_relay.app import (
+    _register_continuous_handlers,
+    _run_poll,
+    _sync_recent_edits,
+    group_messages,
+)
 from noche_relay.config import Settings
+from noche_relay.state import MessageMapping, RelayState
 
 
 class GroupMessagesTests(unittest.TestCase):
@@ -92,6 +103,90 @@ class PollRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.forwarded_groups, [[11, 12], [13]])
         self.assertEqual(state.cursor, 13)
         self.assertEqual(state.mappings, {11: 1011, 12: 1012, 13: 1013})
+
+
+class EditSyncTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.state = RelayState(Path(":memory:"))
+        self.addCleanup(self.state.close)
+        self.edit_date = datetime(2026, 10, 7, 9, tzinfo=timezone.utc)
+        self.messages = [
+            SimpleNamespace(
+                id=source_id,
+                message="Same text",
+                entities=[],
+                edit_date=self.edit_date,
+            )
+            for source_id in (10, 11)
+        ]
+        self.state.save_many([MessageMapping(10, 110), MessageMapping(11, 111)])
+        self.client = SimpleNamespace(
+            get_messages=AsyncMock(return_value=self.messages),
+            edit_message=AsyncMock(),
+        )
+
+    async def test_already_matching_edit_is_saved_and_later_edits_continue(self):
+        self.client.edit_message.side_effect = [
+            MessageNotModifiedError(request=None),
+            None,
+        ]
+
+        await _sync_recent_edits(self.client, "source", "target", self.state, 100)
+
+        self.assertEqual(self.client.edit_message.await_count, 2)
+        self.assertEqual(
+            [call.args[1] for call in self.client.edit_message.await_args_list],
+            [110, 111],
+        )
+        self.assertTrue(all(
+            mapping.source_edit_date == self.edit_date.isoformat()
+            for mapping in self.state.list_recent(100)
+        ))
+
+        # A later polling run must not retry either synchronized edit.
+        await _sync_recent_edits(self.client, "source", "target", self.state, 100)
+        self.assertEqual(self.client.edit_message.await_count, 2)
+
+    async def test_real_edit_failure_is_not_marked_as_synchronized(self):
+        self.client.edit_message.side_effect = RuntimeError("permission denied")
+
+        with self.assertRaisesRegex(RuntimeError, "permission denied"):
+            await _sync_recent_edits(self.client, "source", "target", self.state, 100)
+
+        self.assertTrue(all(
+            mapping.source_edit_date is None
+            for mapping in self.state.list_recent(100)
+        ))
+
+    async def test_continuous_handler_saves_already_matching_edit(self):
+        handlers = []
+
+        def register(event):
+            def decorator(handler):
+                handlers.append(handler)
+                return handler
+            return decorator
+
+        self.client.on = Mock(side_effect=register)
+        self.client.edit_message.side_effect = MessageNotModifiedError(request=None)
+        await _register_continuous_handlers(
+            self.client, "source", "target", self.state,
+            SimpleNamespace(silent=False), asyncio.Lock(),
+        )
+        on_message_edited = next(
+            handler for handler in handlers
+            if handler.__name__ == "on_message_edited"
+        )
+
+        with self.assertLogs("noche_relay", level="INFO") as logs:
+            await on_message_edited(SimpleNamespace(message=self.messages[0]))
+
+        mapping = next(
+            item for item in self.state.list_recent(100)
+            if item.source_message_id == 10
+        )
+        self.assertEqual(mapping.source_edit_date, self.edit_date.isoformat())
+        self.assertFalse(any(record.levelname == "ERROR" for record in logs.records))
 
 
 if __name__ == "__main__":

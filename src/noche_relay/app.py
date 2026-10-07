@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from telethon import TelegramClient, events
-from telethon.errors import ChatForwardsRestrictedError, FloodWaitError
+from telethon.errors import (
+    ChatForwardsRestrictedError,
+    FloodWaitError,
+    MessageNotModifiedError,
+)
 from telethon.sessions import StringSession
 from telethon.tl.custom.message import Message
 
@@ -56,6 +60,14 @@ async def _with_flood_wait(operation):
         except FloodWaitError as exc:
             LOGGER.warning("Telegram rate limit: waiting %s seconds", exc.seconds)
             await asyncio.sleep(exc.seconds + 1)
+
+
+async def _with_edit_flood_wait(operation) -> None:
+    """Treat an already matching target as a successfully synchronized edit."""
+    try:
+        await _with_flood_wait(operation)
+    except MessageNotModifiedError:
+        LOGGER.info("Target message already matches; marking edit as synchronized")
 
 
 def _state_path_for_source(settings: Settings, source_channel: int | str) -> Path:
@@ -177,10 +189,10 @@ async def _sync_recent_edits(
                 link_preview=not bool(getattr(message, "no_webpage", False)),
             )
 
-        await _with_flood_wait(edit)
+        await _with_edit_flood_wait(edit)
         state.mark_edit_synced(message.id, current_edit_date)
         LOGGER.info(
-            "Updated target message %s from source %s",
+            "Synced target message %s from source %s",
             mapping.target_message_id,
             message.id,
         )
@@ -322,13 +334,13 @@ async def _register_continuous_handlers(
             )
 
         try:
-            await _with_flood_wait(edit)
+            await _with_edit_flood_wait(edit)
             if event.message.edit_date is not None:
                 state.mark_edit_synced(
                     event.message.id, event.message.edit_date.isoformat()
                 )
             LOGGER.info(
-                "Updated target message %s from source %s",
+                "Synced target message %s from source %s",
                 target_message_id,
                 event.message.id,
             )
