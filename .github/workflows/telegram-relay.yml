@@ -1,10 +1,7 @@
 name: Telegram relay
 
 on:
-  # Run automatically every five minutes. workflow_dispatch keeps the manual
-  # Run workflow button available for testing and recovery.
-  schedule:
-    - cron: "*/5 * * * *"
+  # cron-job.org triggers this workflow every five minutes.
   workflow_dispatch:
 
 permissions:
