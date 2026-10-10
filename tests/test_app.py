@@ -5,7 +5,11 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-from telethon.errors import MediaCaptionTooLongError, MessageNotModifiedError
+from telethon.errors import (
+    MediaCaptionTooLongError,
+    MessageNotModifiedError,
+    MessageTooLongError,
+)
 
 from noche_relay.app import (
     _register_continuous_handlers,
@@ -162,6 +166,23 @@ class EditSyncTests(unittest.IsolatedAsyncioTestCase):
         ))
 
         # The known uneditable caption is recorded so it cannot block future runs.
+        await _sync_recent_edits(self.client, "source", "target", self.state, 100)
+        self.assertEqual(self.client.edit_message.await_count, 2)
+
+    async def test_too_long_text_does_not_block_later_edits(self):
+        self.client.edit_message.side_effect = [
+            MessageTooLongError(request=None),
+            None,
+        ]
+
+        await _sync_recent_edits(self.client, "source", "target", self.state, 100)
+
+        self.assertEqual(self.client.edit_message.await_count, 2)
+        self.assertTrue(all(
+            mapping.source_edit_date == self.edit_date.isoformat()
+            for mapping in self.state.list_recent(100)
+        ))
+
         await _sync_recent_edits(self.client, "source", "target", self.state, 100)
         self.assertEqual(self.client.edit_message.await_count, 2)
 
