@@ -12,6 +12,7 @@ from telethon import TelegramClient, events
 from telethon.errors import (
     ChatForwardsRestrictedError,
     FloodWaitError,
+    MediaCaptionTooLongError,
     MessageNotModifiedError,
 )
 from telethon.sessions import StringSession
@@ -68,6 +69,11 @@ async def _with_edit_flood_wait(operation) -> None:
         await _with_flood_wait(operation)
     except MessageNotModifiedError:
         LOGGER.info("Target message already matches; marking edit as synchronized")
+    except MediaCaptionTooLongError:
+        LOGGER.warning(
+            "Skipping edit because Telegram rejected the caption as too long; "
+            "continuing with the next message"
+        )
 
 
 def _state_path_for_source(settings: Settings, source_channel: int | str) -> Path:
