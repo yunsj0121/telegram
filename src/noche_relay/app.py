@@ -15,6 +15,7 @@ from telethon.errors import (
     MediaCaptionTooLongError,
     MessageNotModifiedError,
     MessageTooLongError,
+    MessageIdInvalidError,
 )
 from telethon.sessions import StringSession
 from telethon.tl.custom.message import Message
@@ -73,6 +74,11 @@ async def _with_edit_flood_wait(operation) -> None:
     except (MediaCaptionTooLongError, MessageTooLongError):
         LOGGER.warning(
             "Skipping edit because Telegram rejected the text or caption as too long; "
+            "continuing with the next message"
+        )
+    except MessageIdInvalidError:
+        LOGGER.warning(
+            "Skipping edit because the target message is unavailable or cannot be edited; "
             "continuing with the next message"
         )
 

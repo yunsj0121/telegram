@@ -9,6 +9,7 @@ from telethon.errors import (
     MediaCaptionTooLongError,
     MessageNotModifiedError,
     MessageTooLongError,
+    MessageIdInvalidError,
 )
 
 from noche_relay.app import (
@@ -172,6 +173,23 @@ class EditSyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_too_long_text_does_not_block_later_edits(self):
         self.client.edit_message.side_effect = [
             MessageTooLongError(request=None),
+            None,
+        ]
+
+        await _sync_recent_edits(self.client, "source", "target", self.state, 100)
+
+        self.assertEqual(self.client.edit_message.await_count, 2)
+        self.assertTrue(all(
+            mapping.source_edit_date == self.edit_date.isoformat()
+            for mapping in self.state.list_recent(100)
+        ))
+
+        await _sync_recent_edits(self.client, "source", "target", self.state, 100)
+        self.assertEqual(self.client.edit_message.await_count, 2)
+
+    async def test_unavailable_target_does_not_block_later_edits(self):
+        self.client.edit_message.side_effect = [
+            MessageIdInvalidError(request=None),
             None,
         ]
 
