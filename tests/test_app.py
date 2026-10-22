@@ -45,6 +45,12 @@ class PollRunTests(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(id=11, grouped_id=900, edit_date=None),
             SimpleNamespace(id=12, grouped_id=900, edit_date=None),
             SimpleNamespace(id=13, grouped_id=None, edit_date=None),
+            SimpleNamespace(
+                id=14,
+                grouped_id=None,
+                edit_date=None,
+                action=SimpleNamespace(),
+            ),
         ]
 
         class FakeClient:
@@ -106,7 +112,7 @@ class PollRunTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(client.assertions, ("source", 10, True))
         self.assertEqual(client.forwarded_groups, [[11, 12], [13]])
-        self.assertEqual(state.cursor, 13)
+        self.assertEqual(state.cursor, 14)
         self.assertEqual(state.mappings, {11: 1011, 12: 1012, 13: 1013})
 
 

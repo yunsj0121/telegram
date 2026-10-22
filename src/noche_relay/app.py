@@ -245,7 +245,16 @@ async def _run_poll(
         for message in fetched_messages
         if getattr(message, "date", None) is None or message.date <= settle_before
     ]
-    for group in group_messages(new_messages):
+    relayable_messages = []
+    service_message_ids = []
+    for message in new_messages:
+        if getattr(message, "action", None) is not None:
+            service_message_ids.append(message.id)
+            LOGGER.info("Skipping Telegram service message %s", message.id)
+            continue
+        relayable_messages.append(message)
+
+    for group in group_messages(relayable_messages):
         await _relay_messages(
             client,
             source,
@@ -257,7 +266,18 @@ async def _run_poll(
         state.set_cursor(max(item.id for item in group))
 
     if new_messages:
-        LOGGER.info("Polling run processed %s new message(s)", len(new_messages))
+        # Advance beyond service notifications too, or polling would see them forever.
+        state.set_cursor(max(item.id for item in new_messages))
+    if relayable_messages:
+        LOGGER.info(
+            "Polling run processed %s new post message(s)",
+            len(relayable_messages),
+        )
+    elif service_message_ids:
+        LOGGER.info(
+            "Polling run skipped %s Telegram service message(s)",
+            len(service_message_ids),
+        )
     else:
         LOGGER.info("Polling run found no new messages after %s", cursor)
 
