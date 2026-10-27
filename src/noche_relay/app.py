@@ -38,6 +38,26 @@ def _as_messages(
     return [result]
 
 
+async def _resolve_sources(client: TelegramClient, source_refs: Sequence[str]):
+    """Resolve each source independently so one stale username cannot block others."""
+    resolved = []
+    for source_ref in source_refs:
+        try:
+            source = await client.get_entity(source_ref)
+        except ValueError as exc:
+            LOGGER.error(
+                "Skipping unresolved source channel %s: %s",
+                source_ref,
+                exc,
+            )
+            continue
+        resolved.append((source_ref, source))
+
+    if not resolved:
+        raise RuntimeError("None of SOURCE_CHANNELS could be resolved by Telegram")
+    return resolved
+
+
 def group_messages(messages: Iterable[Message]) -> list[list[Message]]:
     """Keep albums together while preserving chronological post order."""
     groups: OrderedDict[tuple[str, int], list[Message]] = OrderedDict()
@@ -397,28 +417,25 @@ async def run(settings: Settings) -> None:
             )
 
         target = await client.get_entity(settings.target_channel)
-        sources = [
-            await client.get_entity(source_channel)
-            for source_channel in settings.source_channels
-        ]
+        resolved_sources = await _resolve_sources(client, settings.source_channels)
         account = await client.get_me()
 
         LOGGER.info(
             "Relay ready: mode=%s account=%s sources=%s target=%s",
             settings.run_mode,
             getattr(account, "username", None) or account.id,
-            [getattr(source, "username", None) or source.id for source in sources],
+            [getattr(source, "username", None) or source.id for _, source in resolved_sources],
             getattr(target, "username", None) or target.id,
         )
 
         if settings.run_mode == "poll":
-            for source_ref, source in zip(settings.source_channels, sources, strict=True):
+            for source_ref, source in resolved_sources:
                 state = _build_state(settings, source_ref)
                 states.append(state)
                 await _run_poll(client, source, target, state, settings)
         else:
             relay_lock = asyncio.Lock()
-            for source_ref, source in zip(settings.source_channels, sources, strict=True):
+            for source_ref, source in resolved_sources:
                 state = _build_state(settings, source_ref)
                 states.append(state)
                 await _register_continuous_handlers(

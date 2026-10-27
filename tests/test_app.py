@@ -15,6 +15,7 @@ from telethon.errors import (
 from noche_relay.app import (
     _register_continuous_handlers,
     _run_poll,
+    _resolve_sources,
     _sync_recent_edits,
     group_messages,
 )
@@ -37,6 +38,23 @@ class GroupMessagesTests(unittest.TestCase):
             [[item.id for item in group] for group in groups],
             [[10], [11, 12], [13]],
         )
+
+
+class SourceResolutionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_unresolved_source_does_not_block_other_sources(self):
+        valid_source = SimpleNamespace(username="globaletfi")
+        client = SimpleNamespace(
+            get_entity=AsyncMock(
+                side_effect=[ValueError("username unavailable"), valid_source]
+            )
+        )
+
+        resolved = await _resolve_sources(
+            client, ["@aetherjapanresearch", "@globaletfi"]
+        )
+
+        self.assertEqual(resolved, [("@globaletfi", valid_source)])
+        self.assertEqual(client.get_entity.await_count, 2)
 
 
 class PollRunTests(unittest.IsolatedAsyncioTestCase):
